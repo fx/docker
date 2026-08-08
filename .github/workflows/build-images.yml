@@ -1,0 +1,60 @@
+name: Build and Publish Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*/Dockerfile'
+      - '.github/workflows/build-image.yml'
+      - '.github/workflows/build-images.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '*/Dockerfile'
+      - '.github/workflows/build-image.yml'
+      - '.github/workflows/build-images.yml'
+  # Weekly rebuild so baked tools (Tailscale, code-server, agent CLIs) do not
+  # drift far behind upstream between Dockerfile changes.
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+# The images form a chain: each is built FROM the one above it, pinned to the
+# digest that job just pushed rather than to :latest. That way a single commit
+# touching several Dockerfiles is built and reviewed as one coherent change,
+# instead of layering a PR's changes onto whatever main last published.
+#
+#   devcontainer          generic dev base
+#     └── coder           headless Coder workspace
+#           └── coder-desktop   + X11/VNC desktop stack
+jobs:
+  devcontainer:
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      name: devcontainer
+      dockerfile: ./devcontainer/Dockerfile
+
+  coder:
+    needs: devcontainer
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      name: coder
+      dockerfile: ./coder/Dockerfile
+      base_image: ghcr.io/${{ github.repository }}/devcontainer@${{ needs.devcontainer.outputs.digest }}
+
+  coder-desktop:
+    needs: coder
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      name: coder-desktop
+      dockerfile: ./coder-desktop/Dockerfile
+      base_image: ghcr.io/${{ github.repository }}/coder@${{ needs.coder.outputs.digest }}

@@ -1,32 +1,63 @@
-# Docker Images Repository
+# Docker Images
 
-This repository contains Docker images for personal use.
+Container images for personal use, published to GitHub Container Registry.
 
 ## Images
 
-### DevContainer
+### `devcontainer`
 
-A development container based on Ubuntu 22.04 with common development tools.
+`ghcr.io/fx/docker/devcontainer:latest`
 
-**Image:** `ghcr.io/fx/docker/devcontainer:latest`
+A generic development container. Use it as a `.devcontainer` base for any project.
 
-**Features:**
-- Base: Ubuntu 22.04
-- Docker-in-Docker support
-- mise (formerly rtx) for runtime management
-- Node.js LTS (via mise)
-- GitHub CLI
-- Common development utilities
+- Ubuntu 24.04 (`mcr.microsoft.com/devcontainers/base`)
+- Docker CE with Buildx and Compose (docker-in-docker; start the daemon yourself)
+- [mise](https://mise.jdx.dev/) with Node.js LTS
+- GitHub CLI, git, tmux, jq, Python 3 and the usual shell utilities
 
-**Usage:**
+### `coder`
+
+`ghcr.io/fx/docker/coder:latest`
+
+Built **from** the `devcontainer` image, for use as a headless [Coder](https://coder.com/) workspace image. It bakes in everything a workspace would otherwise download on every start, so boot does auth and daemons only:
+
+- **Tailscale** — client and daemon installed; the workspace still runs `tailscale up` with its own auth key
+- **code-server** — at `/usr/local/bin/code-server`
+- **Tooling via mise** — Bun, chezmoi, `gh`, `kubectl`, plus the Claude Code and Codex CLIs
+- **CodeRabbit CLI** — `coderabbit` / `cr`
+- mise shims on `PATH` for non-interactive shells, telemetry opt-outs, and a UTF-8 locale
+
+Version-volatile tools are installed through mise rather than pinned, so a workspace can pull a newer release with `mise upgrade` without waiting for an image rebuild.
+
+### `coder-desktop`
+
+`ghcr.io/fx/docker/coder-desktop:latest`
+
+Built **from** the `coder` image, adding a graphical desktop: Xvfb, x11vnc, noVNC, Fluxbox, PulseAudio, and both Mesa software rendering and the bare GL loaders used with a passed-through GPU.
+
+It is a separate image rather than part of `coder` because most workspaces are headless and the stack is ~650 MB. The workspace template picks between the two from its desktop option. There is no GPU variant — `nvidia-utils` has to match the host's driver version, so it stays a runtime install.
+
+## Usage
 
 ```bash
 docker pull ghcr.io/fx/docker/devcontainer:latest
+docker pull ghcr.io/fx/docker/coder:latest
+docker pull ghcr.io/fx/docker/coder-desktop:latest
 ```
 
-## Building Images
+## Building
 
-Images are automatically built and published to GitHub Container Registry when changes are pushed to the main branch.
+The images form a chain — `devcontainer` → `coder` → `coder-desktop` — each built from the exact digest the previous job just pushed. All are built for `linux/amd64` and `linux/arm64` and pushed by [`.github/workflows/build-images.yml`](.github/workflows/build-images.yml) on push to `main`, on pull requests touching a Dockerfile, weekly, and on manual dispatch.
+
+Locally:
+
+```bash
+docker build -f devcontainer/Dockerfile -t fx-devcontainer:test .
+docker build -f coder/Dockerfile --build-arg BASE_IMAGE=fx-devcontainer:test -t fx-coder:test .
+docker build -f coder-desktop/Dockerfile --build-arg BASE_IMAGE=fx-coder:test -t fx-coder-desktop:test .
+```
+
+See [AGENTS.md](AGENTS.md) for conventions and what to verify before pushing.
 
 ## License
 

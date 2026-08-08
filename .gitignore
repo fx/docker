@@ -18,3 +18,8 @@ Thumbs.db
 *.tmp
 *.temp
 *.log
+
+# Coder workspace runtime state. The workspace dir is this repo's checkout, and
+# the startup script persists Tailscale node state (private keys) into it.
+# This repository is public — never commit it.
+.tailscale/
