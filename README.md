@@ -47,7 +47,9 @@ docker pull ghcr.io/fx/docker/coder-desktop:latest
 
 ## Building
 
-The images form a chain — `devcontainer` → `coder` → `coder-desktop` — each built from the exact digest the previous job just pushed. All are built for `linux/amd64` and `linux/arm64` and pushed by [`.github/workflows/build-images.yml`](.github/workflows/build-images.yml) on push to `main`, on pull requests touching a Dockerfile, weekly, and on manual dispatch.
+The images form a chain — `devcontainer` → `coder` → `coder-desktop` — each built from the exact digest the previous job just pushed. All are built for `linux/amd64` and `linux/arm64` by [`.github/workflows/build-images.yml`](.github/workflows/build-images.yml) on push to `main`, on pull requests touching a Dockerfile, weekly, and on manual dispatch.
+
+Pull requests **from a fork** are not built at all: publishing needs a `packages: write` token, which GitHub withholds from fork PRs, so the jobs are skipped rather than left to fail on the push. A fork PR therefore produces no images and no `pr-N` tags — expect the build to run once a maintainer lands or re-pushes the branch in this repository.
 
 Locally:
 
