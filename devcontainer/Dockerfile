@@ -77,7 +77,19 @@ RUN for rc in /root/.bashrc /etc/skel/.bashrc /home/vscode/.bashrc; do \
 
 # Repos are bind-mounted from hosts with unrelated UIDs; without this every git
 # command in a mounted workspace fails with "detected dubious ownership".
-RUN git config --system --add safe.directory '*'
+#
+# Scoped to the two conventional mount roots rather than '*': /workspaces/<repo>
+# is where VS Code devcontainers mount, /workspace/<name> is where Coder
+# workspaces do. A trailing /* matches recursively, so nested repos and
+# submodules under those roots are covered too. A blanket '*' would disable the
+# ownership check for every path in the image, including anything a container
+# later mounts from an untrusted source.
+#
+# Mounting a repo somewhere else (e.g. /src) will produce the dubious-ownership
+# error; widen it for that consumer with an explicit
+# `git config --global --add safe.directory <path>` rather than reinstating '*'.
+RUN git config --system --add safe.directory '/workspace/*' \
+    && git config --system --add safe.directory '/workspaces/*'
 
 # `git-remote-https` and friends live in git-core and are not on the default PATH.
 ENV PATH="/usr/lib/git-core:${PATH}"

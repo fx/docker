@@ -2,7 +2,7 @@
 
 ## Task Cross-Reference
 
-Cross-reference every PR against task lists in `docs/changes/` and `docs/tasks.md`. If the PR completes work tracked in those files, the task checkboxes MUST be updated in this same PR. Request changes if missing.
+This repository intentionally has no `docs/` tree — it holds Dockerfiles, not a spec-driven project. **If** `docs/changes/` or `docs/tasks.md` are ever added, cross-reference every PR against those task lists: when a PR completes work tracked there, the task checkboxes MUST be updated in the same PR, and changes should be requested if they are missing. While those paths do not exist, there is nothing to cross-reference — do not send reviewers chasing them.
 
 ---
 

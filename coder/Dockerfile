@@ -47,8 +47,12 @@ RUN curl -fsSL https://code-server.dev/install.sh \
 # `mise activate` and would otherwise get the apt-provided gh/kubectl. /usr/local/bin
 # precedes /usr/bin everywhere, and each shim re-resolves its version through mise,
 # so this keeps tracking `mise use` / `mise upgrade` at runtime.
+#
+# ~/.local/bin (CodeRabbit CLI, and anything a user installs later) goes AFTER
+# the shims for the same reason: a stray `gh` or `kubectl` dropped in there must
+# not shadow the mise-managed one.
 ENV MISE_SHIMS=/home/vscode/.local/share/mise/shims
-ENV PATH="${MISE_SHIMS}:${PATH}"
+ENV PATH="${MISE_SHIMS}:/home/vscode/.local/bin:${PATH}"
 
 # Telemetry opt-outs and a UTF-8 locale (tmux infers UTF-8 from LC_*/LANG; without
 # it, sessions come up in a non-UTF-8 mode and need `tmux -u`). C.UTF-8 is built
@@ -91,9 +95,13 @@ USER vscode
 
 # CodeRabbit CLI (installs to ~/.local/bin as `coderabbit` + `cr`). CI=1 skips
 # the interactive browser sign-in; workspaces authenticate at start with an API
-# key. Not fatal if the installer has no build for this architecture.
-RUN curl -fsSL https://cli.coderabbit.ai/install.sh | CI=1 sh \
-    || echo "WARNING: CodeRabbit CLI install failed on $(dpkg --print-architecture); continuing"
+# key. Tolerate the INSTALLER failing (it may have no build for this arch), but
+# not the download: fetch to a file first so a curl failure is fatal. Piped into
+# `sh`, a failed curl feeds an empty script to a shell that then exits 0, so the
+# `||` never fires and the image silently ships without the CLI.
+RUN curl -fsSL https://cli.coderabbit.ai/install.sh -o /tmp/coderabbit-install.sh \
+    && { CI=1 sh /tmp/coderabbit-install.sh \
+         || echo "WARNING: CodeRabbit CLI install failed on $(dpkg --print-architecture); continuing"; } \
+    && rm -f /tmp/coderabbit-install.sh
 
-ENV PATH="/home/vscode/.local/bin:${PATH}"
 ENV DEBIAN_FRONTEND=
