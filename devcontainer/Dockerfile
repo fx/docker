@@ -88,8 +88,15 @@ RUN ARCH="$(dpkg --print-architecture)" && \
 # Ubuntu's stock root/skel .bashrc guards interactivity with `[ -z "$PS1" ]`,
 # which explodes under `set -u` (unbound variable) — e.g. when a provisioning
 # script sources the profile with strict mode on. Use the ${PS1:-} form instead.
+# `if` rather than `[ -f ] && sed || true`: the latter swallows sed's exit status
+# too, so a genuine failure (read-only file, unreadable rc) would leave the guard
+# unpatched and still produce a green build. Only a missing file is tolerated.
+# sed exits 0 when the pattern is absent, so rc files using the `case $-` form
+# are fine.
 RUN for rc in /root/.bashrc /etc/skel/.bashrc /home/vscode/.bashrc; do \
-        [ -f "$rc" ] && sed -i 's/\[ -z "\$PS1" \]/[ -z "${PS1:-}" ]/' "$rc" || true; \
+        if [ -f "$rc" ]; then \
+            sed -i 's/\[ -z "\$PS1" \]/[ -z "${PS1:-}" ]/' "$rc"; \
+        fi; \
     done
 
 # Repos are bind-mounted from hosts with unrelated UIDs; without this every git

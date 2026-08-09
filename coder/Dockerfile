@@ -100,13 +100,19 @@ USER vscode
 
 # CodeRabbit CLI (installs to ~/.local/bin as `coderabbit` + `cr`). CI=1 skips
 # the interactive browser sign-in; workspaces authenticate at start with an API
-# key. Tolerate the INSTALLER failing (it may have no build for this arch), but
-# not the download: fetch to a file first so a curl failure is fatal. Piped into
-# `sh`, a failed curl feeds an empty script to a shell that then exits 0, so the
-# `||` never fires and the image silently ships without the CLI.
+# key.
+#
+# Strictly fatal, with no "continue on failure" escape hatch. An earlier version
+# tolerated installer failures on the theory that some architecture might have no
+# build — but the published arm64 image was checked and carries a genuine AArch64
+# binary, so the tolerance guarded against nothing while being able to hide a real
+# outage and ship an image with no CLI and a green build. The download goes to a
+# file rather than a pipe for the same reason: `curl | sh` reports only `sh`'s
+# status, and a shell fed an empty script exits 0.
 RUN curl -fsSL https://cli.coderabbit.ai/install.sh -o /tmp/coderabbit-install.sh \
-    && { CI=1 sh /tmp/coderabbit-install.sh \
-         || echo "WARNING: CodeRabbit CLI install failed on $(dpkg --print-architecture); continuing"; } \
-    && rm -f /tmp/coderabbit-install.sh
+    && CI=1 sh /tmp/coderabbit-install.sh \
+    && rm -f /tmp/coderabbit-install.sh \
+    && test -x "$HOME/.local/bin/coderabbit" \
+    && command -v cr >/dev/null
 
 ENV DEBIAN_FRONTEND=
