@@ -85,13 +85,20 @@ docker run --rm fx-coder:test bash -c 'command -v gh kubectl claude codex bun co
 docker run --rm fx-coder:test bash -c 'command -v Xvfb && echo LEAKED-INTO-BASE'
 ```
 
-For the desktop stack, start it and confirm noVNC answers rather than trusting that the packages installed:
+For the desktop stack, start the whole thing and confirm noVNC actually answers, rather than trusting that the packages installed. Checking GLX alone would pass with a completely broken VNC path:
 
 ```bash
 docker run --rm fx-coder-desktop:test bash -c '
-  Xvfb :1 -screen 0 1280x720x24 +extension GLX +render -noreset & sleep 3
-  DISPLAY=:1 glxinfo -B | grep "OpenGL renderer"'
+  Xvfb :1 -screen 0 1280x720x24 +extension GLX +render -noreset >/dev/null 2>&1 & sleep 3
+  export DISPLAY=:1
+  fluxbox >/dev/null 2>&1 & sleep 2
+  x11vnc -display :1 -rfbport 5901 -forever -shared -bg -nopw >/dev/null 2>&1; sleep 2
+  websockify --web=/usr/share/novnc 6080 localhost:5901 >/dev/null 2>&1 & sleep 2
+  curl -sf -o /dev/null -w "novnc HTTP %{http_code}\n" http://localhost:6080/
+  LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe glxinfo -B | grep "OpenGL renderer"'
 ```
+
+Expect `novnc HTTP 200` and an `llvmpipe` renderer.
 
 Confirm the image sizes did not jump unexpectedly (`docker images`); a sudden increase usually means a cache was left behind, or something landed in a lower layer than intended.
 
