@@ -1,0 +1,74 @@
+name: Build and Publish Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*/Dockerfile'
+      - '.github/workflows/build-image.yml'
+      - '.github/workflows/build-images.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '*/Dockerfile'
+      - '.github/workflows/build-image.yml'
+      - '.github/workflows/build-images.yml'
+  # Weekly rebuild so baked tools (Tailscale, code-server, agent CLIs) do not
+  # drift far behind upstream between Dockerfile changes.
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+# All three images publish shared, mutable tags (:latest, :main). Two overlapping
+# runs would race on them, and a slower older run finishing last would leave the
+# tags pointing at the older commit. One run per ref at a time, newest wins.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The images form a chain: each is built FROM the one above it, pinned to the
+# digest that job just pushed rather than to :latest. That way a single commit
+# touching several Dockerfiles is built and reviewed as one coherent change,
+# instead of layering a PR's changes onto whatever main last published.
+#
+#   devcontainer          generic dev base
+#     └── coder           headless Coder workspace
+#           └── coder-desktop   + X11/VNC desktop stack
+jobs:
+  devcontainer:
+    # Fork PRs get a read-only GITHUB_TOKEN, so `packages: write` is not granted
+    # and the push would fail with a permissions error rather than useful signal.
+    # Skip publishing for them; a maintainer reviewing a fork PR should build the
+    # chain locally (see AGENTS.md) or push the branch to this repo to get CI.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      name: devcontainer
+      dockerfile: ./devcontainer/Dockerfile
+
+  coder:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: devcontainer
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      name: coder
+      dockerfile: ./coder/Dockerfile
+      base_image: ghcr.io/${{ github.repository }}/devcontainer@${{ needs.devcontainer.outputs.digest }}
+
+  coder-desktop:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: coder
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      name: coder-desktop
+      dockerfile: ./coder-desktop/Dockerfile
+      base_image: ghcr.io/${{ github.repository }}/coder@${{ needs.coder.outputs.digest }}

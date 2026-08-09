@@ -1,0 +1,83 @@
+# Reusable single-image build. The images form a chain
+# (devcontainer -> coder -> coder-desktop) and every link is built identically,
+# so the steps live here once and build-images.yml wires up the ordering.
+name: Build Image
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: 'Image name under ghcr.io/<repo>/'
+        required: true
+        type: string
+      dockerfile:
+        description: 'Path to the Dockerfile'
+        required: true
+        type: string
+      base_image:
+        description: 'Value for the BASE_IMAGE build arg. Empty uses the Dockerfile default.'
+        required: false
+        default: ''
+        type: string
+    outputs:
+      digest:
+        description: 'Digest of the pushed image, for pinning the next link in the chain'
+        value: ${{ jobs.build.outputs.digest }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ inputs.name }}
+          # Plain `type=sha` (-> sha-1c0507c), NOT prefix={{branch}}-: on
+          # pull_request events {{branch}} expands to nothing, yielding the tag
+          # ":-1c0507c", which starts with a dash and is not a valid reference.
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          push: true
+          build-args: ${{ inputs.base_image != '' && format('BASE_IMAGE={0}', inputs.base_image) || '' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ inputs.name }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.name }}
+          # The weekly cron exists to pick up new upstream releases of the baked
+          # tools. With the layer cache on and the Dockerfile unchanged, every
+          # RUN would be reused and the run would republish the identical
+          # payload — a refresh that refreshes nothing. Bypass the cache on
+          # scheduled runs so `apt-get install`, the vendor installers and the
+          # `@latest` mise tools actually re-resolve. Cache stays on for push,
+          # pull_request and manual dispatch, where the point is a fast build.
+          no-cache: ${{ github.event_name == 'schedule' }}
+          platforms: linux/amd64,linux/arm64
