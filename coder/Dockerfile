@@ -36,8 +36,13 @@ RUN curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/$(lsb_release -cs).noar
 
 # code-server, installed standalone so it is owned by the image rather than
 # re-downloaded into /tmp on every workspace start.
-RUN curl -fsSL https://code-server.dev/install.sh \
-        | sh -s -- --method=standalone --prefix=/usr/local/lib/code-server \
+# Downloaded to a file rather than piped into sh: in a pipeline the exit status
+# is the last command's, so a failed curl feeds an empty script to a shell that
+# exits 0. The `code-server --version` below would still catch it, but only after
+# `ln -s` had made a dangling symlink, and the error would point at the wrong step.
+RUN curl -fsSL https://code-server.dev/install.sh -o /tmp/code-server-install.sh \
+    && sh /tmp/code-server-install.sh --method=standalone --prefix=/usr/local/lib/code-server \
+    && rm -f /tmp/code-server-install.sh \
     && ln -sf /usr/local/lib/code-server/bin/code-server /usr/local/bin/code-server \
     && code-server --version \
     && rm -rf /root/.cache/code-server

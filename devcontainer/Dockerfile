@@ -57,7 +57,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Docker CE (docker-in-docker; the daemon is started by the consumer).
-RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+# The key is fetched to a file and dearmored from it, never piped: a pipeline
+# reports only the last command's status, so a failed download would hand gpg
+# empty input and still leave a zero exit and an empty keyring. apt would then
+# fail later with a signature error that points nowhere near the real cause.
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.asc \
+    && gpg --batch --yes --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg /tmp/docker.asc \
+    && rm -f /tmp/docker.asc \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
@@ -66,10 +72,15 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /
 RUN usermod -aG docker vscode 2>/dev/null || true
 
 # mise (runtime version manager) via its APT repository.
+# Same rule as the Docker key above — fetch to a file, dearmor from it. The
+# upstream-documented `wget | gpg | tee` form is worse still: `tee` succeeding
+# masks a failure in either earlier stage and writes an empty keyring.
 RUN ARCH="$(dpkg --print-architecture)" && \
     install -dm 755 /etc/apt/keyrings && \
-    wget -qO - https://mise.jdx.dev/gpg-key.pub | gpg --dearmor | tee /etc/apt/keyrings/mise-archive-keyring.gpg 1> /dev/null && \
-    echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.gpg arch=${ARCH}] https://mise.jdx.dev/deb stable main" | tee /etc/apt/sources.list.d/mise.list && \
+    wget -qO /tmp/mise-gpg-key.pub https://mise.jdx.dev/gpg-key.pub && \
+    gpg --batch --yes --dearmor -o /etc/apt/keyrings/mise-archive-keyring.gpg /tmp/mise-gpg-key.pub && \
+    rm -f /tmp/mise-gpg-key.pub && \
+    echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.gpg arch=${ARCH}] https://mise.jdx.dev/deb stable main" > /etc/apt/sources.list.d/mise.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends mise && \
     rm -rf /var/lib/apt/lists/*
