@@ -59,6 +59,7 @@ A weekly `schedule:` rebuild keeps the baked tools from drifting far behind upst
 - Delete download caches in the same layer that creates them (`~/.cache/mise`, `/root/.cache/code-server`). A cache removed in a *later* `RUN` still ships in the image.
 - Comment the *why*, not the *what*. `RUN apt-get install xvfb` needs no comment; the reason both Mesa and bare GL loader packages are installed does.
 - Group related installs into one `RUN` so the layer count stays sane, but keep independently-cacheable, slow steps (mise tools, code-server) separate so an edit to one doesn't rebuild the other.
+- **Never call `sudo`.** The arm64 leg of the multi-arch build runs under QEMU user-mode emulation, which does not honour the setuid bit, so `sudo` fails there while working fine locally on amd64 — a failure you will only see in CI. Switch `USER root`, do the work, switch back.
 
 ## Verifying a change
 

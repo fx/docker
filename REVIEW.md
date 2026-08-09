@@ -27,6 +27,7 @@ No credential, token, or auth key may be baked into an image, including via a bu
 - **New variants need a selector.** A fourth image is only justified if the workspace template has something to switch on. Reject variants that duplicate a runtime decision — GPU support in particular cannot be baked, because `nvidia-utils` must match the host driver version.
 - **Baked vs. runtime.** The `coder` image exists to eliminate per-boot installs. Anything static and universal should be baked; anything that is a secret, a per-workspace identity, or a long-running daemon must not be. Question additions that violate either direction.
 - **Alphabetized package lists**, so duplicates and conflicts are visible.
+- **No `sudo` in a Dockerfile.** The arm64 leg builds under QEMU user-mode emulation, which ignores the setuid bit, so `sudo` fails there while passing a local amd64 build. Require `USER root` / `USER vscode` around the privileged step instead.
 
 ## Verification Expectations
 

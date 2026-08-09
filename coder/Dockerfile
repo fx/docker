@@ -80,8 +80,14 @@ RUN mise use -g node@lts \
 
 # gh and kubectl are the two tools most often invoked non-interactively, so pin
 # explicit /usr/local/bin symlinks ahead of the apt copies.
-RUN sudo ln -sf "${MISE_SHIMS}/gh" /usr/local/bin/gh \
-    && sudo ln -sf "${MISE_SHIMS}/kubectl" /usr/local/bin/kubectl
+#
+# Switch to root rather than calling sudo: under QEMU user-mode emulation (how
+# the arm64 leg of the multi-arch build runs) the setuid bit is not honoured, so
+# sudo fails outright. Never use sudo in these Dockerfiles — USER is free.
+USER root
+RUN ln -sf "${MISE_SHIMS}/gh" /usr/local/bin/gh \
+    && ln -sf "${MISE_SHIMS}/kubectl" /usr/local/bin/kubectl
+USER vscode
 
 # CodeRabbit CLI (installs to ~/.local/bin as `coderabbit` + `cr`). CI=1 skips
 # the interactive browser sign-in; workspaces authenticate at start with an API
