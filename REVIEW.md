@@ -16,6 +16,8 @@ Flag any content sourced from private infrastructure: internal hostnames or IP a
 
 No credential, token, or auth key may be baked into an image, including via a build arg. Build args are recorded in image history and are readable by anyone who pulls it.
 
+What this rule is **not**: `.gitignore` entries that keep secrets out of the repo are safety controls, not disclosures — do not ask for them to be removed. `.tailscale/` in particular reveals nothing the public `coder/Dockerfile` does not already state by installing Tailscale, and an attacker who can read that path already has code execution in the workspace, where `tailscale status` and `/var/lib/tailscale` are right there. Removing the ignore would only make committing a key more likely. Comments describing *private infrastructure behaviour* are a fair thing to flag; the ignore rule itself is not.
+
 ## Dockerfile Review Checks
 
 - **Both architectures.** Anything installed must work on `linux/amd64` and `linux/arm64`, or fail non-fatally with an explicit comment saying why. A `curl | sh` installer with no arm64 build that aborts the layer breaks half the matrix.
