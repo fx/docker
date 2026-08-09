@@ -54,7 +54,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # noVNC ships vnc.html, not index.html, and the Coder app proxies the bare "/".
-RUN [ -f /usr/share/novnc/vnc.html ] && ln -sf vnc.html /usr/share/novnc/index.html || true
+#
+# No `|| true`: if an upstream packaging change moves vnc.html, the desktop app
+# would 404 at its own URL, and the whole point of this image is that the desktop
+# works. Fail the build instead of shipping it. The trailing test catches a
+# dangling symlink too, since `ln -sf` happily creates one.
+RUN test -f /usr/share/novnc/vnc.html \
+    && ln -sf vnc.html /usr/share/novnc/index.html \
+    && test -f /usr/share/novnc/index.html
 
 USER vscode
 WORKDIR /home/vscode
