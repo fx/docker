@@ -36,6 +36,11 @@ concurrency:
 #           └── coder-desktop   + X11/VNC desktop stack
 jobs:
   devcontainer:
+    # Fork PRs get a read-only GITHUB_TOKEN, so `packages: write` is not granted
+    # and the push would fail with a permissions error rather than useful signal.
+    # Skip publishing for them; a maintainer reviewing a fork PR should build the
+    # chain locally (see AGENTS.md) or push the branch to this repo to get CI.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     uses: ./.github/workflows/build-image.yml
     permissions:
       contents: read
@@ -45,6 +50,7 @@ jobs:
       dockerfile: ./devcontainer/Dockerfile
 
   coder:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: devcontainer
     uses: ./.github/workflows/build-image.yml
     permissions:
@@ -56,6 +62,7 @@ jobs:
       base_image: ghcr.io/${{ github.repository }}/devcontainer@${{ needs.devcontainer.outputs.digest }}
 
   coder-desktop:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: coder
     uses: ./.github/workflows/build-image.yml
     permissions:
