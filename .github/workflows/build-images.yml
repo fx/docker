@@ -19,6 +19,13 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+# All three images publish shared, mutable tags (:latest, :main). Two overlapping
+# runs would race on them, and a slower older run finishing last would leave the
+# tags pointing at the older commit. One run per ref at a time, newest wins.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # The images form a chain: each is built FROM the one above it, pinned to the
 # digest that job just pushed rather than to :latest. That way a single commit
 # touching several Dockerfiles is built and reviewed as one coherent change,

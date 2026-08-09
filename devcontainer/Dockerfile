@@ -12,6 +12,12 @@ LABEL org.opencontainers.image.description="Ubuntu 24.04 devcontainer with Docke
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Retry apt transfers. The arm64 leg pulls from ports.ubuntu.com, which has been
+# observed serving a half-synced index ("Hash Sum mismatch") and failing the
+# build for reasons that have nothing to do with this repo. Set in the base
+# image so every downstream layer in the chain inherits it.
+RUN printf 'Acquire::Retries "3";\n' > /etc/apt/apt.conf.d/99-retries
+
 # Base dependencies.
 #
 # python3 / psmisc / socat are here because downstream tooling (workspace
